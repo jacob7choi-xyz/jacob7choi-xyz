@@ -2,6 +2,7 @@
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jacob7choi-xyz/jacob7choi-xyz/main/assets/header-dark.svg">
   <img alt="Jacob J. Choi, signature above an audio waveform being restored from noise" src="https://raw.githubusercontent.com/jacob7choi-xyz/jacob7choi-xyz/main/assets/header-light.svg" width="100%">
 </picture>
+<br><br>
 
 AI/Agentic Pipeline Engineer at [MCGI @ The Jackson Laboratory](https://www.jax.org/clinical-genomics/maine-cancer-genomics-initiative) · CS: AI at Colby College ('27)
 
