@@ -6,8 +6,8 @@ those points sit closer together than a pixel and only cost parse and raster
 time. simplified() drops them with Ramer-Douglas-Peucker at TOLERANCE units,
 which bounds the shape error at 0.32 device px even on a 2x display.
 
-Both build_header.py and build_strokes.py go through this module, so the pen
-strokes are always fitted to exactly the geometry the header draws.
+build_header.py draws both the outline and the fill from simplified(), so
+the two steps always share exactly the same geometry.
 Standard library only.
 """
 
