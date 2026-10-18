@@ -6,9 +6,9 @@
 
 AI/Agentic Pipeline Engineer at [MCGI @ The Jackson Laboratory](https://www.jax.org/clinical-genomics/maine-cancer-genomics-initiative) · CS: AI at Colby College ('27)
 
-I build AI systems for settings where a wrong answer costs something, and I care as much about whether the numbers are true as about the numbers themselves.
+Building.
 
-**Now:** an AI tumor board system for the Maine Cancer Genomics Initiative, built to cut oncologists' case prep from 60+ to under 5 minutes. Multi-agent orchestration, biomedical GraphRAG, citation-verified evidence retrieval.<br>
+**Currently:** an AI tumor board system for the Maine Cancer Genomics Initiative, built to cut oncologists' case prep from 60+ to under 5 minutes. Multi-agent orchestration, biomedical GraphRAG, citation-verified evidence retrieval.<br>
 **Before:** Turing test study on AutoGen, mentored by [Mark Encarnación, Microsoft Research](https://www.microsoft.com/en-us/research/people/markenc/) · AI/ML research intern at USC Institute for Creative Technologies · violist ([NPR's *From the Top*](https://fromthetop.org/musician/jacob-choi/), Juilliard admission)
 
 #### Selected work
