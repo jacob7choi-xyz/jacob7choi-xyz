@@ -131,6 +131,14 @@ class MergeAndRender(unittest.TestCase):
         texts = [t.text for t in root.iter("{http://www.w3.org/2000/svg}text")]
         self.assertEqual(texts.count("Oct"), 2)
 
+    def test_headline_is_the_merged_total(self):
+        a = parse_calendar(payload(count=lambda i: 2), "a")
+        b = parse_calendar(payload(count=lambda i: 1), "b")
+        days = merge([a, b])
+        total = sum(c for _, c in days)
+        self.assertEqual(total, 3 * 371)
+        self.assertIn(f"{total:,} contributions in the last year", render(days, "dark"))
+
     def test_light_mode_outlines_every_square(self):
         days = merge([parse_calendar(payload(), "a")])
         light = render(days, "light")

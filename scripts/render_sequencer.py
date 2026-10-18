@@ -24,7 +24,9 @@ from contributions import ACCOUNTS, fetch, merge, parse_calendar, write_atomic
 
 CELL, GAP = 14, 4
 STEP = CELL + GAP
-LEFT, TOP = 36, 30
+# TOP leaves room for the headline (like GitHub's "N contributions in the last
+# year") above the month labels.
+LEFT, TOP = 36, 58
 WEEKDAYS = ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")  # row order, Sunday first
 LOOP = 9.0  # seconds per pass of the playhead
 
@@ -40,11 +42,14 @@ PLAYHEAD = {"dark": (2, "#ffffff", 0.7), "light": (8, "#ffffff", 0.75)}
 # own text colour) so the grid stays crisp on white. Dark mode needs neither.
 OUTLINE = {"dark": None, "light": "#1f2328"}
 TEXT = {"dark": THEMES["dark"]["muted"], "light": "#1f2328"}
+# The headline uses GitHub's primary text colour, like its own graph does.
+HEADLINE = {"dark": "#e6edf3", "light": "#1f2328"}
 LEVEL_OPACITY = (0, 0.32, 0.55, 0.78, 1.0)
 
 
 def levels(counts: list[int]) -> list[int]:
-    """Quartiles of the non-zero days, the way GitHub buckets its graph."""
+    """Quartiles of the non-zero days. GitHub does not publish its exact
+    bucketing, so this approximates it; a day can land one shade off."""
     nz = sorted(c for c in counts if c)
     if not nz:
         return [0] * len(counts)
@@ -110,6 +115,7 @@ def render(days, theme: str) -> str:
         for k in range(5)
     )
     start, end = days[0][0], days[-1][0]
+    total = sum(c for _, c in days)
     edge = f' stroke="{OUTLINE[theme]}" stroke-width="1"' if OUTLINE[theme] else ""
     ph_w, ph_fill, ph_op = PLAYHEAD[theme]
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="100%" role="img" aria-labelledby="t">
@@ -119,6 +125,7 @@ def render(days, theme: str) -> str:
 <g font-family="{MONO}" font-size="11" fill="{TEXT[theme]}">
 {"".join(months)}
 {"".join(f'<text x="0" y="{TOP + r * STEP + 11}">{name}</text>' for r, name in enumerate(WEEKDAYS))}
+<text x="0" y="18" font-size="15" font-weight="600" fill="{HEADLINE[theme]}">{escape(f"{total:,} contributions in the last year")}</text>
 <text x="{LEFT}" y="{H - 6}">{escape(f"{start:%b %Y} – {end:%b %Y} · Personal + Work Accounts")}</text>
 <text x="{legend_x}" y="{H - 6}">Less</text><text x="{W}" y="{H - 6}" text-anchor="end">More</text>
 </g>
