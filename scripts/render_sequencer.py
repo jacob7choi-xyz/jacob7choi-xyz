@@ -79,13 +79,14 @@ def render(days, theme: str) -> str:
             col_month.append((col, x, d))
 
     # Label each column where the month changes, including the partial month the
-    # year starts in. If two labels would collide (fewer than 3 columns apart),
-    # keep the later one, which is the month that owns more of the grid.
+    # year starts in. A three-letter label needs two columns (36 units at
+    # 11px); only when two labels are a single column apart is the earlier
+    # one dropped, since the later month owns more of the grid.
     marks = []
     for col, x, d in col_month:
         if marks and (marks[-1][2].year, marks[-1][2].month) == (d.year, d.month):
             continue
-        if marks and col - marks[-1][0] < 3:
+        if marks and col - marks[-1][0] < 2:
             marks.pop()
         marks.append((col, x, d))
     months = [f'<text x="{x}" y="{TOP - 10}">{escape(d.strftime("%b"))}</text>' for _, x, d in marks]

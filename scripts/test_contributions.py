@@ -123,6 +123,14 @@ class MergeAndRender(unittest.TestCase):
         for name in ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Less", "More"):
             self.assertIn(name, texts)
 
+    def test_partial_first_month_keeps_its_label(self):
+        # The window CI actually received on 2026-10-18 (UTC): 365 days from
+        # Sun 2025-10-19, so October owns only two columns before November.
+        days = merge([parse_calendar(payload(start=dt.date(2025, 10, 19), days=365), "a")])
+        root = ET.fromstring(render(days, "dark"))
+        texts = [t.text for t in root.iter("{http://www.w3.org/2000/svg}text")]
+        self.assertEqual(texts.count("Oct"), 2)
+
     def test_light_mode_outlines_every_square(self):
         days = merge([parse_calendar(payload(), "a")])
         light = render(days, "light")
