@@ -16,16 +16,19 @@ Usage: python3 scripts/build_header.py
 
 import json
 import math
-import re
 from pathlib import Path
 
+import sigpath
 from brand import MONO, THEMES, gradient
 
 ROOT = Path(__file__).resolve().parent.parent
 W, H = 1000, 300
 MID, AMP = 228, 30
 SIG_H = 150
-WRITE_START, WRITE_SECONDS = 0.2, 3.2
+# Writing waits 0.8s: on github.com the page's own scripts freeze the main
+# thread for ~200ms shortly after load (measured 2026-10-18), and a pen that
+# is already moving visibly jumps. Starting after that keeps the stroke smooth.
+WRITE_START, WRITE_SECONDS = 0.8, 3.2
 # The fill waits for the pen: it starts only once the whole signature,
 # underline flourish included, has been written. Everything after keys off it.
 WRITE_END = WRITE_START + WRITE_SECONDS
@@ -68,21 +71,6 @@ def noisy_path(n: int = 420, seed: int = 7) -> str:
     return "M" + "L".join(f"{x:.1f} {y:.1f}" for x, y in pts)
 
 
-def closed_contours(path: str) -> str:
-    """Keep only the subpaths that end where they start: the letterforms.
-
-    The open subpaths are the cursive connectors and the underline flourish.
-    Filling one of those closes it with a straight chord, which turns the
-    flourish into a solid lens under the name, so they stay stroke-only.
-    """
-    keep = []
-    for sub in re.findall(r"M[^M]+", path):
-        nums = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", sub)]
-        if math.hypot(nums[0] - nums[-2], nums[1] - nums[-1]) < 1:
-            keep.append(sub)
-    return "".join(keep)
-
-
 def render(theme: str, sig: dict, strokes: list[dict]) -> str:
     box = sig["box"]
     sig_w = SIG_H * box["w"] / box["h"]
@@ -91,7 +79,12 @@ def render(theme: str, sig: dict, strokes: list[dict]) -> str:
     muted = THEMES[theme]["muted"]
     # Filled letterforms carry the same visual weight as the sequencer's solid
     # squares below, so the page reads as one system.
-    letters = closed_contours(sig["path"])
+    # Simplified geometry (see sigpath.py). The letter contours are defined
+    # once and drawn twice via <use>: as the fill and as the outline. The open
+    # strokes (connectors, flourish) only ever appear in the outline.
+    subs = sigpath.simplified(sig["path"])
+    letters = sigpath.to_d([p for p in subs if sigpath.is_closed(p)])
+    opens = sigpath.to_d([p for p in subs if not sigpath.is_closed(p)])
     # Two passes. First the outline is signed by hand: each pen stroke runs
     # along a letter's centreline (see build_strokes.py) inside a mask, so the
     # outline appears exactly where the pen has been, at a constant pen speed.
@@ -101,6 +94,12 @@ def render(theme: str, sig: dict, strokes: list[dict]) -> str:
     feather = 120
     fill_w = box["w"] + 2 * feather
     solid = (box["w"] + feather) / fill_w
+    # Each pen path has pathLength=1. The dash pattern is 1 on, 2 off, and a
+    # waiting stroke sits at offset 1.05, which parks the dash entirely before
+    # the path starts. With the obvious encoding (dasharray 1, offset 1) a
+    # zero-length dash lands exactly on the path's end, and WebKit (Safari, the
+    # GitHub iOS app) still paints its round cap there: every waiting stroke
+    # left a dot that showed fragments of later letters early.
     pen = []
     total = sum(st["length"] for st in strokes)
     t = WRITE_START
@@ -113,8 +112,8 @@ def render(theme: str, sig: dict, strokes: list[dict]) -> str:
         t += dur
 
     css = f"""
-.pen path{{stroke-dasharray:1;stroke-dashoffset:0;animation-name:write;animation-timing-function:linear;animation-fill-mode:both}}
-@keyframes write{{from{{stroke-dashoffset:1}}to{{stroke-dashoffset:0}}}}
+.pen path{{stroke-dasharray:1 2;stroke-dashoffset:0;animation-name:write;animation-timing-function:linear;animation-fill-mode:both}}
+@keyframes write{{from{{stroke-dashoffset:1.05}}to{{stroke-dashoffset:0}}}}
 .ink{{animation:ink {FILL_SECONDS}s cubic-bezier(.45,0,.35,1) {FILL_START:.2f}s both}}
 @keyframes ink{{from{{transform:translateX(-{fill_w:.1f}px)}}to{{transform:none}}}}
 .wave{{opacity:1;animation:fade .6s ease-out {FILL_END - 0.2:.2f}s both}}
@@ -142,9 +141,10 @@ def render(theme: str, sig: dict, strokes: list[dict]) -> str:
 </mask>
 <linearGradient id="pf"><stop offset="0" stop-color="#fff"/><stop offset="{solid:.4f}" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
 <mask id="mf" maskUnits="userSpaceOnUse" x="{box["x"] - fill_w}" y="{box["y"]}" width="{2 * fill_w}" height="{box["h"]}"><rect class="ink" x="{box["x"] - feather}" y="{box["y"]}" width="{fill_w}" height="{box["h"]}" fill="url(#pf)"/></mask>
+<path id="L" d="{letters}"/>
 </defs>
-<path d="{letters}" mask="url(#mf)" fill="url(#gs)"/>
-<path d="{sig["path"]}" mask="url(#mw)" fill="none" stroke="url(#gs)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<use href="#L" mask="url(#mf)" fill="url(#gs)"/>
+<g mask="url(#mw)" fill="none" stroke="url(#gs)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><use href="#L"/><path d="{opens}"/></g>
 </svg>
 <g class="wave" fill="none" stroke-linecap="round" stroke-linejoin="round">
 <path d="{noisy_path()}" stroke="url(#g)" stroke-width="1.1" opacity=".55" mask="url(#mn)"/>
@@ -165,6 +165,9 @@ def main() -> None:
     # The strokes are derived from one exact signature path; refuse to pair
     # them with a different one.
     assert pen["source_path_sha256"] == sig["path_sha256"], "re-run build_strokes.py"
+    assert pen["tolerance"] == sigpath.TOLERANCE and pen["geometry_sha256"] == sigpath.geometry_hash(
+        sigpath.simplified(sig["path"])
+    ), "pens were fitted to different geometry; re-run build_strokes.py"
     for theme in THEMES:
         out = ROOT / "assets" / f"header-{theme}.svg"
         out.write_text(render(theme, sig, pen["strokes"]))

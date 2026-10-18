@@ -32,12 +32,13 @@ Usage: uv run --python 3.13 scripts/build_strokes.py
 
 import json
 import math
-import re
 from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw
 from skimage.morphology import binary_dilation, disk, medial_axis
+
+import sigpath
 
 ROOT = Path(__file__).resolve().parent.parent
 SCALE = 4  # raster pixels per signature unit
@@ -45,36 +46,6 @@ SCALE = 4  # raster pixels per signature unit
 # past the letter's edge. Pens must cover that too, or the outline is clipped.
 OUTLINE_REACH = 1.5
 PAD = 8  # signature units of padding around the box
-
-
-def subpaths(path: str) -> list[list[tuple[float, float]]]:
-    out = []
-    for sub in re.findall(r"M[^M]+", path):
-        pts, cur = [], None
-        for cmd, args in re.findall(r"([MLC])([^MLC]*)", sub):
-            nums = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", args)]
-            if cmd in "ML":
-                for i in range(0, len(nums), 2):
-                    cur = (nums[i], nums[i + 1])
-                    pts.append(cur)
-            else:  # cubic: sample it
-                for i in range(0, len(nums), 6):
-                    p1, p2, p3 = nums[i : i + 2], nums[i + 2 : i + 4], nums[i + 4 : i + 6]
-                    p0 = cur
-                    for k in range(1, 9):
-                        t = k / 8
-                        u = 1 - t
-                        cur = (
-                            u**3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t**3 * p3[0],
-                            u**3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t**3 * p3[1],
-                        )
-                        pts.append(cur)
-        out.append(pts)
-    return out
-
-
-def closed(pts) -> bool:
-    return math.dist(pts[0], pts[-1]) < 1
 
 
 def signed_area(pts) -> float:
@@ -167,18 +138,8 @@ def chain(edges):
     return strokes
 
 
-def simplify(pts, tol):
-    """Ramer-Douglas-Peucker."""
-    if len(pts) < 3:
-        return pts
-    a, b = np.array(pts[0], float), np.array(pts[-1], float)
-    ab = b - a
-    norm = np.hypot(*ab) or 1.0
-    d = [abs(ab[0] * (a[1] - p[1]) - ab[1] * (a[0] - p[0])) / norm for p in pts]
-    i = int(np.argmax(d))
-    if d[i] > tol:
-        return simplify(pts[: i + 1], tol)[:-1] + simplify(pts[i:], tol)
-    return [pts[0], pts[-1]]
+def polyline_len(pts) -> float:
+    return sum(math.dist(a, b) for a, b in zip(pts, pts[1:]))
 
 
 def main() -> None:
@@ -188,9 +149,10 @@ def main() -> None:
     W = int((box["w"] + 2 * PAD) * SCALE)
     H = int((box["h"] + 2 * PAD) * SCALE)
 
-    subs = subpaths(sig["path"])
-    contours = [s for s in subs if closed(s)]
-    opens = [s for s in subs if not closed(s)]
+    # Fit the pens to exactly the simplified geometry the header draws.
+    subs = sigpath.simplified(sig["path"])
+    contours = [s for s in subs if sigpath.is_closed(s)]
+    opens = [s for s in subs if not sigpath.is_closed(s)]
 
     # Outer contours share an orientation; holes (the inside of an 'o') run the
     # other way. Union the outers, then cut the holes.
@@ -214,47 +176,63 @@ def main() -> None:
     for line in chain(trace(skel)):
         radius = max(dist[p] for p in line) / SCALE
         pts = [(x / SCALE + ox, y / SCALE + oy) for y, x in line]
-        pts = simplify(pts, 0.35)
+        pts = sigpath.rdp(pts, sigpath.TOLERANCE)
         if len(pts) < 2:
             continue
         strokes.append({"pts": pts, "width": round(2 * radius + 2 * OUTLINE_REACH + 2, 2), "kind": "letter"})
     for o in opens:
         # Connectors and the flourish are already centrelines.
         kind = "flourish" if max(p[0] for p in o) - min(p[0] for p in o) > box["w"] * 0.5 else "connector"
-        strokes.append({"pts": simplify(o, 0.35), "width": 6.0, "kind": kind})
+        strokes.append({"pts": o, "width": 6.0, "kind": kind})
 
     # Writing order: by where each stroke starts, flourish always last.
     strokes.sort(key=lambda s: (s["kind"] == "flourish", min(p[0] for p in s["pts"][:1])))
-    for s in strokes:
-        s["length"] = round(sum(math.dist(a, b) for a, b in zip(s["pts"], s["pts"][1:])), 2)
-        s["d"] = "M" + "L".join(f"{x:.1f} {y:.1f}" for x, y in s.pop("pts"))
+    def raster(st) -> np.ndarray:
+        img = Image.new("1", (W, H), 0)
+        dr = ImageDraw.Draw(img)
+        px = [to_px(p) for p in st["pts"]]
+        w = max(1, int(st["width"] * SCALE))
+        dr.line(px, fill=1, width=w, joint="curve")
+        r = w / 2
+        for x, y in px:
+            dr.ellipse([x - r, y - r, x + r, y + r], fill=1)
+        return np.array(img, dtype=bool)
 
-    # Coverage check: every pixel of the letters AND their outline must be
-    # reached by some pen stroke, or part of the signature would stay hidden
-    # after the animation finishes.
-    cover = Image.new("1", (W, H), 0)
-    cd = ImageDraw.Draw(cover)
-    for s in strokes:
-        pts = [tuple(map(float, p.split())) for p in s["d"][1:].split("L")]
-        px = [to_px(p) for p in pts]
-        w = max(1, int(s["width"] * SCALE))
-        cd.line(px, fill=1, width=w, joint="curve")
-        for p in px:
-            r = w / 2
-            cd.ellipse([p[0] - r, p[1] - r, p[0] + r, p[1] + r], fill=1)
-    covered = np.array(cover, dtype=bool)
+    # Coverage: every pixel of the letters AND their outline must be reached by
+    # some pen stroke, or part of the signature would stay hidden after the
+    # animation finishes.
     target = binary_dilation(ink, disk(int(OUTLINE_REACH * SCALE)))
-    missed = int((target & ~covered).sum())
+    count = np.zeros((H, W), dtype=np.uint16)
+    for st in strokes:
+        count += raster(st)
+
+    # Prune: every <path> in the mask is another element the browser animates
+    # and re-rasterises each frame. Drop letter strokes, shortest first, whose
+    # every target pixel is also covered by some other stroke. Coverage stays
+    # exactly what it was.
+    before = len(strokes)
+    for st in sorted([s for s in strokes if s["kind"] == "letter"], key=lambda s: polyline_len(s["pts"])):
+        m = raster(st)
+        if not (target & m & (count < 2)).any():
+            count -= m
+            strokes.remove(st)
+    missed = int((target & (count == 0)).sum())
     frac = 1 - missed / max(1, int(target.sum()))
+
+    for st in strokes:
+        st["length"] = round(polyline_len(st["pts"]), 2)
+        st["d"] = sigpath.to_d([st.pop("pts")])
 
     out = ROOT / "scripts" / "data" / "signature_strokes.json"
     out.write_text(json.dumps({
         "source_path_sha256": sig["path_sha256"],
+        "geometry_sha256": sigpath.geometry_hash(subs),
+        "tolerance": sigpath.TOLERANCE,
         "generator": "scripts/build_strokes.py",
         "coverage": round(frac, 5),
         "strokes": strokes,
     }))
-    print(f"{len(strokes)} strokes ({sum(s['kind'] == 'letter' for s in strokes)} letter), "
+    print(f"{len(strokes)} strokes (pruned from {before}), "
           f"coverage {frac:.4%} ({missed} px missed), wrote {out.relative_to(ROOT)} ({out.stat().st_size:,} bytes)")
 
 
