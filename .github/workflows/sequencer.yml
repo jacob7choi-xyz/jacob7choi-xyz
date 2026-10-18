@@ -1,0 +1,60 @@
+name: sequencer
+
+# Re-renders the contribution sequencer every 12 hours and force-pushes it as the
+# single commit on the `output` branch, so daily renders never add history to
+# main. The README links to the files on that branch.
+
+on:
+  schedule:
+    - cron: "0 4,16 * * *" # midnight and noon US Eastern (EDT); 11 PM / 11 AM under EST, since cron is UTC
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: sequencer
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      # Needed only to push the output branch. The calendar query reads public
+      # data and needs no scope. Splitting render and publish into two jobs
+      # would add the artifact actions as dependencies for no real gain: the
+      # renderer lives in this repo, so anyone who could change it could also
+      # change this file.
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Test
+        run: python3 -m unittest discover -s scripts
+
+      - name: Render
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/render_sequencer.py "$RUNNER_TEMP/out"
+
+      - name: Publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        working-directory: ${{ runner.temp }}/out
+        run: |
+          set -euo pipefail
+          git init -q -b output
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sequencer-dark.svg sequencer-light.svg
+          git commit -q -m "Render contribution sequencer"
+          # Pass the credential through git's environment config rather than
+          # the remote URL or argv, so it never lands in .git/config or ps.
+          basic=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)
+          echo "::add-mask::$basic"
+          GIT_CONFIG_COUNT=1 \
+          GIT_CONFIG_KEY_0="http.https://github.com/.extraheader" \
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $basic" \
+            git push -q --force "https://github.com/${GITHUB_REPOSITORY}.git" output
