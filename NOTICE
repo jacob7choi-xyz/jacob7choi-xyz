@@ -1,0 +1,16 @@
+Scope of the license
+
+The MIT License in LICENSE covers the source code in this repository: the
+files under scripts/ (except scripts/data/) and .github/.
+
+It does not cover the following, which are Copyright (c) 2026 Jacob J. Choi,
+all rights reserved:
+
+  - assets/ (the rendered header artwork)
+  - scripts/data/ (the signature geometry)
+  - the images published on the `output` branch
+  - README.md (the profile text)
+
+The signature outlines were generated from the Great Vibes typeface, which is
+licensed under the SIL Open Font License 1.1. The OFL permits using the font
+to create artwork such as this; the artwork itself is not subject to the OFL.
