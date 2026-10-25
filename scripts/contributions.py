@@ -6,11 +6,13 @@ never touches the network or unvalidated input.
 Security posture:
   * Standard library only. Nothing is installed at run time, so there is no
     dependency to compromise.
-  * The token is read from the environment, sent only to api.github.com over
-    HTTPS, and never printed.
-  * Every field of the response is validated before use. Anything unexpected
-    raises, and no file is written. A failed run leaves yesterday's image in
-    place instead of publishing a broken or empty one.
+  * The token (read from the environment by render_sequencer.py) is sent only
+    to api.github.com over HTTPS and is never printed. Redirects are refused,
+    so the token cannot be forwarded to another host.
+  * Every field of the response is validated before use, and each calendar
+    must be one unbroken run of days. Anything unexpected raises, and no file
+    is written. A failed run leaves the last good image in place instead of
+    publishing a broken or empty one.
 """
 
 import datetime as dt
@@ -28,14 +30,24 @@ MAX_BYTES = 2_000_000
 MAX_DAILY = 50_000  # far above any real day; guards against garbage, not a quota
 LOGIN_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}")
 DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+MAX_SPAN = 378  # most days one calendar may hold; the merged range may not exceed it
 
 QUERY = """query($login:String!){user(login:$login){contributionsCollection{
 contributionCalendar{weeks{contributionDays{date contributionCount}}}}}}"""
 
 
-
 class DataError(ValueError):
     pass
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    # urllib would resend the Authorization header to a redirect target. The
+    # GraphQL endpoint never redirects, so any redirect fails instead.
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 def fetch(login: str, token: str) -> dict:
@@ -52,7 +64,7 @@ def fetch(login: str, token: str) -> dict:
             "User-Agent": "jacob7choi-xyz-profile",
         },
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with _OPENER.open(req, timeout=30) as resp:
         if resp.status != 200:
             raise DataError(f"HTTP {resp.status} for {login}")
         raw = resp.read(MAX_BYTES + 1)
@@ -83,12 +95,19 @@ def parse_calendar(payload: dict, login: str) -> dict[dt.date, int]:
             # bool is a subclass of int; reject it explicitly.
             if type(count) is not int or not 0 <= count <= MAX_DAILY:
                 raise DataError(f"bad count for {login}")
-            d = dt.date.fromisoformat(date)
+            try:
+                d = dt.date.fromisoformat(date)
+            except ValueError:
+                raise DataError(f"bad date for {login}") from None
             if d in days:
                 raise DataError(f"duplicate date for {login}")
             days[d] = count
-    if not 350 <= len(days) <= 378:
+    if not 350 <= len(days) <= MAX_SPAN:
         raise DataError(f"unexpected day count for {login}")
+    # A missing day would otherwise be zero-filled by merge() and silently
+    # drop that day's contributions.
+    if (max(days) - min(days)).days + 1 != len(days):
+        raise DataError(f"calendar has gaps for {login}")
     return days
 
 
@@ -96,6 +115,10 @@ def merge(calendars: list[dict[dt.date, int]]) -> list[tuple[dt.date, int]]:
     """Sum per day across accounts over one contiguous date range."""
     start = min(min(c) for c in calendars)
     end = max(max(c) for c in calendars)
+    # Accounts may differ by a day at the edges (time zones). Calendars that
+    # barely overlap mean one response is wrong, so refuse to draw them.
+    if (end - start).days + 1 > MAX_SPAN:
+        raise DataError("calendars do not cover the same year")
     out = []
     d = start
     while d <= end:

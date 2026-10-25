@@ -7,9 +7,9 @@ flashes as it passes, like a step being triggered.
 All input comes through contributions.py, which validates it first. The SVG
 is built only from those validated integers and dates plus fixed strings, and
 text nodes are XML-escaped anyway, so a later change cannot quietly turn this
-into an injection point. Every animation is CSS; each element's resting style
-is the static picture, so reduced motion or a renderer without animation still
-shows the full calendar.
+into an injection point. Every animation is CSS. The playhead and flashes rest
+invisible and every cell rests at its final colour, so reduced motion or a
+renderer without animation still shows the full calendar.
 
 Usage: GITHUB_TOKEN=... python3 scripts/render_sequencer.py OUT_DIR
 """
@@ -30,20 +30,17 @@ LEFT, TOP = 36, 58
 WEEKDAYS = ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")  # row order, Sunday first
 LOOP = 9.0  # seconds per pass of the playhead
 
-EMPTY = {"dark": "#161b22", "light": "#eff2f5"}
 # The passing step brightens a cell in both themes. A dark flash on white
 # read as a shadow rather than a note being struck.
-FLASH = {"dark": "#ffffff", "light": "#ffffff"}
+FLASH = "#ffffff"
 # Dark mode: a thin white line. Light mode: a wider translucent white beam
 # that lifts the colour of every square it passes, so the step reads as
 # light hitting the grid rather than a dark bar crossing it.
 PLAYHEAD = {"dark": (2, "#ffffff", 0.7), "light": (8, "#ffffff", 0.75)}
 # Light mode outlines every square and sets all text in near-black (GitHub's
 # own text colour) so the grid stays crisp on white. Dark mode needs neither.
-OUTLINE = {"dark": None, "light": "#1f2328"}
-TEXT = {"dark": THEMES["dark"]["muted"], "light": "#1f2328"}
-# The headline uses GitHub's primary text colour, like its own graph does.
-HEADLINE = {"dark": "#e6edf3", "light": "#1f2328"}
+OUTLINE = {"dark": None, "light": THEMES["light"]["ink"]}
+TEXT = {"dark": THEMES["dark"]["muted"], "light": THEMES["light"]["ink"]}
 LEVEL_OPACITY = (0, 0.32, 0.55, 0.78, 1.0)
 
 
@@ -79,7 +76,7 @@ def render(days, theme: str) -> str:
                 f'<g class="k{col}"><rect class="f" x="{x}" y="{y}" width="{CELL}" height="{CELL}" rx="3"/>{ring}</g>'
             )
         else:
-            cells.append(f'<rect x="{x}" y="{y}" width="{CELL}" height="{CELL}" rx="3" fill="{EMPTY[theme]}"/>')
+            cells.append(f'<rect x="{x}" y="{y}" width="{CELL}" height="{CELL}" rx="3" fill="{pal["empty"]}"/>')
         if row == 0 or i == 0:
             col_month.append((col, x, d))
 
@@ -98,7 +95,7 @@ def render(days, theme: str) -> str:
 
     delays = "".join(f".k{c} *{{animation-delay:{c / cols * LOOP:.3f}s}}" for c in range(cols))
     css = f"""
-.f{{fill:{FLASH[theme]};opacity:0;animation:flash {LOOP}s linear infinite}}
+.f{{fill:{FLASH};opacity:0;animation:flash {LOOP}s linear infinite}}
 .r{{fill:none;stroke:url(#g);stroke-width:1.5;opacity:0;transform-box:fill-box;transform-origin:center;animation:ring {LOOP}s ease-out infinite}}
 .ph{{opacity:0;animation:ph {LOOP}s linear infinite}}
 @keyframes flash{{0%{{opacity:.85}}7%{{opacity:0}}100%{{opacity:0}}}}
@@ -110,7 +107,7 @@ def render(days, theme: str) -> str:
     legend_x = W - 136  # "Less" + five swatches + "More"
     legend = "".join(
         f'<rect x="{legend_x + 32 + k * 14}" y="{H - 16}" width="10" height="10" rx="2" '
-        + (f'fill="{EMPTY[theme]}"' if k == 0 else f'fill="url(#g)" fill-opacity="{LEVEL_OPACITY[k]}"')
+        + (f'fill="{pal["empty"]}"' if k == 0 else f'fill="url(#g)" fill-opacity="{LEVEL_OPACITY[k]}"')
         + "/>"
         for k in range(5)
     )
@@ -125,7 +122,7 @@ def render(days, theme: str) -> str:
 <g font-family="{MONO}" font-size="11" fill="{TEXT[theme]}">
 {"".join(months)}
 {"".join(f'<text x="0" y="{TOP + r * STEP + 11}">{name}</text>' for r, name in enumerate(WEEKDAYS))}
-<text x="0" y="18" font-size="15" font-weight="600" fill="{HEADLINE[theme]}">{escape(f"{total:,} contributions in the last year")}</text>
+<text x="0" y="18" font-size="15" font-weight="600" fill="{pal['ink']}">{escape(f"{total:,} contributions in the last year")}</text>
 <text x="{LEFT}" y="{H - 6}">{escape(f"{start:%b %Y} – {end:%b %Y} · Personal + Work Accounts")}</text>
 <text x="{legend_x}" y="{H - 6}">Less</text><text x="{W}" y="{H - 6}" text-anchor="end">More</text>
 </g>

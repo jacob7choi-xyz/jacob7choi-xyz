@@ -1,7 +1,6 @@
 """Run: python3 -m unittest discover -s scripts"""
 
 import json
-import math
 import re
 import unittest
 import xml.etree.ElementTree as ET
@@ -18,6 +17,13 @@ def css(svg: str) -> str:
     return svg.split("<style>")[1].split("</style>")[0]
 
 
+def resting_transforms(svg: str) -> list[str]:
+    """CSS lines outside @keyframes that set a transform. The finished picture
+    must come from geometry alone, so a renderer that skips animation, or
+    reduced motion, still shows it; this should always be empty."""
+    return [l for l in css(svg).splitlines() if not l.startswith("@keyframes") and "transform:" in l]
+
+
 class Header(unittest.TestCase):
     def setUp(self):
         self.svg = {t: build_header.render(t, SIG) for t in ("dark", "light")}
@@ -25,8 +31,7 @@ class Header(unittest.TestCase):
     def test_wellformed_and_static_at_rest(self):
         for svg in self.svg.values():
             ET.fromstring(svg)
-            resting = [l for l in css(svg).splitlines() if not l.startswith("@keyframes")]
-            self.assertFalse([l for l in resting if "transform:" in l])
+            self.assertEqual(resting_transforms(svg), [])
 
     def test_waiting_outline_pieces_paint_nothing(self):
         # Regression: WebKit paints a round cap even for a zero-length dash, so

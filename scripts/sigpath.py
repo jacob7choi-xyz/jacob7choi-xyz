@@ -11,7 +11,6 @@ the two steps always share exactly the same geometry.
 Standard library only.
 """
 
-import hashlib
 import math
 import re
 
@@ -21,13 +20,18 @@ Point = tuple[float, float]
 
 
 def parse(path: str) -> list[list[Point]]:
-    """Split an M/L/C path into polylines, sampling cubics into 8 segments."""
+    """Split an M/L/C path into polylines, sampling cubics into 8 segments.
+
+    Only absolute M, L and C with plain decimals are understood. Anything else
+    (other commands, exponents) raises rather than being silently skipped."""
+    if not re.fullmatch(r"[MLC0-9.,\s-]*", path):
+        raise ValueError("unsupported path syntax")
     out = []
     for sub in re.findall(r"M[^M]+", path):
         pts: list[Point] = []
         cur: Point = (0.0, 0.0)
         for cmd, args in re.findall(r"([MLC])([^MLC]*)", sub):
-            n = [float(x) for x in re.findall(r"-?\d+(?:\.\d+)?", args)]
+            n = [float(x) for x in re.findall(r"-?(?:\d+\.?\d*|\.\d+)", args)]
             if cmd in "ML":
                 for i in range(0, len(n), 2):
                     cur = (n[i], n[i + 1])
@@ -107,7 +111,3 @@ def fmt(tenths: int) -> str:
     elif s.startswith("-0."):
         s = "-" + s[2:]
     return s or "0"
-
-
-def geometry_hash(subpaths: list[list[Point]]) -> str:
-    return hashlib.sha256(to_d(subpaths).encode()).hexdigest()

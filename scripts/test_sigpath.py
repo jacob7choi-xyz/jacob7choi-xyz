@@ -1,5 +1,6 @@
 """Run: python3 -m unittest discover -s scripts"""
 
+import hashlib
 import json
 import math
 import re
@@ -47,6 +48,19 @@ class Serialisation(unittest.TestCase):
         cases = {0: "0", 12: "1.2", -3: "-.3", 3: ".3", 40: "4", -40: "-4", -125: "-12.5"}
         for tenths, want in cases.items():
             self.assertEqual(sigpath.fmt(tenths), want)
+
+
+class Source(unittest.TestCase):
+    def test_path_matches_its_recorded_hash(self):
+        # signature.json records the hash of the website path it was copied
+        # from, so an accidental edit to the path fails here.
+        self.assertEqual(hashlib.sha256(SIG["path"].encode()).hexdigest(), SIG["path_sha256"])
+
+    def test_parse_rejects_what_it_cannot_read(self):
+        for bad in ("M0 0Q1 1 2 2", "M0 0L1e3 0", "M0 0Z"):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                sigpath.parse(bad)
+        self.assertEqual(sigpath.parse("M0 0L.5 -1.5"), [[(0.0, 0.0), (0.5, -1.5)]])
 
 
 class Simplification(unittest.TestCase):

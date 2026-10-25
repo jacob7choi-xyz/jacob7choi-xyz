@@ -37,8 +37,6 @@ WRITE_END = WRITE_START + WRITE_SECONDS
 FILL_START, FILL_SECONDS = WRITE_END + 0.15, 1.5
 FILL_END = FILL_START + FILL_SECONDS
 
-INK = {"dark": "#e6edf3", "light": "#1f2328"}
-
 
 def clean_y(t: float) -> float:
     # Same terms as WAVE_PATH in the website's HomeContent.tsx.
@@ -103,7 +101,7 @@ def render(theme: str, sig: dict) -> str:
     box = sig["box"]
     sig_w = SIG_H * box["w"] / box["h"]
     sig_x = (W - sig_w) / 2
-    ink = INK[theme]
+    ink = THEMES[theme]["ink"]
     muted = THEMES[theme]["muted"]
     subs = sigpath.simplified(sig["path"])  # see sigpath.py
     # Step 2, the fill: the closed letter contours, revealed left to right by

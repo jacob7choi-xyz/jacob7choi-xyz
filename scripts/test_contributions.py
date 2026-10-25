@@ -5,8 +5,10 @@ import datetime as dt
 import unittest
 import xml.etree.ElementTree as ET
 
+from brand import THEMES
 from contributions import LOGIN_RE, DataError, merge, parse_calendar
 from render_sequencer import levels, render
+from test_header import resting_transforms
 
 
 def payload(start=dt.date(2025, 10, 12), days=371, count=lambda i: i % 7):
@@ -51,7 +53,7 @@ class ParseCalendar(unittest.TestCase):
         for bad in ("2025-13-01", "2025-1-1", "<script>", None):
             p = copy.deepcopy(payload())
             first_day(p)["date"] = bad
-            with self.subTest(bad=bad), self.assertRaises((DataError, ValueError)):
+            with self.subTest(bad=bad), self.assertRaises(DataError):
                 parse_calendar(p, "a")
 
     def test_rejects_duplicate_dates(self):
@@ -64,6 +66,13 @@ class ParseCalendar(unittest.TestCase):
     def test_rejects_truncated_calendar(self):
         with self.assertRaises(DataError):
             parse_calendar(payload(days=30), "a")
+
+    def test_rejects_a_missing_day(self):
+        # Merging would zero-fill the hole and silently lose that day.
+        p = payload()
+        del p["data"]["user"]["contributionsCollection"]["contributionCalendar"]["weeks"][10]["contributionDays"][3]
+        with self.assertRaises(DataError):
+            parse_calendar(p, "a")
 
 
 class Logins(unittest.TestCase):
@@ -83,6 +92,17 @@ class MergeAndRender(unittest.TestCase):
             [(dt.date(2026, 1, 1), 5), (dt.date(2026, 1, 2), 0), (dt.date(2026, 1, 3), 1)],
         )
 
+    def test_merge_tolerates_a_one_day_edge_offset(self):
+        a = parse_calendar(payload(start=dt.date(2025, 10, 12)), "a")
+        b = parse_calendar(payload(start=dt.date(2025, 10, 13)), "b")
+        self.assertEqual(len(merge([a, b])), 372)
+
+    def test_merge_refuses_calendars_from_different_years(self):
+        a = parse_calendar(payload(start=dt.date(2024, 10, 13)), "a")
+        b = parse_calendar(payload(start=dt.date(2025, 10, 12)), "b")
+        with self.assertRaises(DataError):
+            merge([a, b])
+
     def test_render_is_wellformed_static_svg(self):
         days = merge([parse_calendar(payload(), "a"), parse_calendar(payload(count=lambda i: 0), "b")])
         for theme in ("dark", "light"):
@@ -96,13 +116,8 @@ class MergeAndRender(unittest.TestCase):
                 self.assertEqual(hits, 0, forbidden)
 
     def test_resting_frame_needs_no_animation(self):
-        # The finished picture must come from geometry alone. Transforms may
-        # appear only inside @keyframes, so a renderer that skips CSS animation
-        # or reduced motion still shows the full calendar.
         svg = render(merge([parse_calendar(payload(), "a")]), "dark")
-        css = svg.split("<style>")[1].split("</style>")[0]
-        resting = "".join(line for line in css.splitlines() if not line.startswith("@keyframes"))
-        self.assertNotIn("transform:", resting)
+        self.assertEqual(resting_transforms(svg), [])
 
     def test_grid_has_one_cell_per_day(self):
         days = merge([parse_calendar(payload(), "a")])
@@ -142,12 +157,13 @@ class MergeAndRender(unittest.TestCase):
     def test_light_mode_outlines_every_square(self):
         days = merge([parse_calendar(payload(), "a")])
         light = render(days, "light")
-        self.assertIn('<g stroke="#1f2328" stroke-width="1">', light)
-        self.assertNotIn('stroke="#1f2328" stroke-width="1"', render(days, "dark"))
+        ink = THEMES["light"]["ink"]
+        self.assertIn(f'<g stroke="{ink}" stroke-width="1">', light)
+        self.assertNotIn(f'stroke="{ink}" stroke-width="1"', render(days, "dark"))
         # Faint cells must not fade their outline along with their fill.
         self.assertNotIn(' opacity="0.32"', light)
 
-    def test_levels_bucket_like_github(self):
+    def test_levels_are_bounded_and_monotone(self):
         self.assertEqual(levels([0, 0, 0]), [0, 0, 0])
         lv = levels([0, 1, 2, 3, 4, 5, 6, 7, 8, 100])
         self.assertEqual(lv[0], 0)

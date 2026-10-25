@@ -10,12 +10,14 @@ THEMES = {
     "dark": {
         "sweep": [("0%", "#FF9E8A"), ("34%", "#54E09C"), ("64%", "#2FD2CE"), ("100%", "#36ADEE")],
         "muted": "#8b949e",
-        "faint": "#30363d",
+        "ink": "#e6edf3",  # GitHub's primary text colour on dark
+        "empty": "#161b22",  # GitHub's empty contribution square on dark
     },
     "light": {
         "sweep": [("0%", "#C4553F"), ("34%", "#1A8F5A"), ("64%", "#12827F"), ("100%", "#1F6FB2")],
         "muted": "#59636e",
-        "faint": "#d1d9e0",
+        "ink": "#1f2328",  # GitHub's primary text colour on light
+        "empty": "#eff2f5",  # GitHub's empty contribution square on light
     },
 }
 

@@ -1,7 +1,7 @@
 name: sequencer
 
 # Re-renders the contribution sequencer every 12 hours and force-pushes it as the
-# single commit on the `output` branch, so daily renders never add history to
+# single commit on the `output` branch, so the renders never add history to
 # main. The README links to the files on that branch.
 
 on:
