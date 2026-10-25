@@ -13,7 +13,7 @@ AI/Agentic Pipeline Engineer at [MCGI @ The Jackson Laboratory](https://www.jax.
 
 | Project | What it is |
 | --- | --- |
-| [**HarmonyRestorer**](https://github.com/jacob7choi-xyz/harmonyrestorer-v1) · [live](https://harmonyrestorer.online/) | Audio restoration built on a from-scratch 1D Operational GAN ([Ince et al. 2022](https://arxiv.org/abs/2212.14618)), trained on 146K noisy/clean pairs. FastAPI + React, 1,041 tests. |
+| [**HarmonyRestorer**](https://github.com/jacob7choi-xyz/harmonyrestorer-v1) · [live](https://harmonyrestorer.online/) | Audio restoration built on a from-scratch 1D Operational GAN ([Ince et al. 2022](https://arxiv.org/abs/2212.14618)), trained on 146K noisy/clean pairs. FastAPI + React, 1,091 tests. |
 | [**fli-tracker**](https://github.com/jacob7choi-xyz/fli-tracker) | Flight-price collector on a 6-hour GitHub Actions schedule since April 2026. Each run writes a provenance manifest, and a coverage ledger marks every slot complete, partial, or missing. |
 | [**polymarket-research**](https://github.com/jacob7choi-xyz/polymarket-research) | Arbitrage detection and calibration research across 9,922 resolved prediction markets, built for resilience and observability: Prometheus + Grafana, Docker, 326 tests. |
 | [**TuneTales**](https://github.com/jacob7choi-xyz/tunetales-v1) · [live](https://tunetales-v1.vercel.app/) | Cinematic music storytelling: 77 Frank Ocean songs with origin stories from an AI research pipeline, playable inside a 6-chapter journey. Next.js + Python. |
