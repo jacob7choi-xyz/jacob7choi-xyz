@@ -11,7 +11,8 @@ import build_header
 
 import sigpath
 
-SIG = json.loads((Path(__file__).parent / "data" / "signature.json").read_text())
+ROOT = Path(__file__).resolve().parent.parent
+SIG = json.loads((ROOT / "scripts" / "data" / "signature.json").read_text())
 
 
 def css(svg: str) -> str:
@@ -80,6 +81,71 @@ class Header(unittest.TestCase):
         self.assertEqual(len(subs), len(sigpath.simplified(SIG["path"])))
         self.assertIn(build_header.flourish(), subs)
         self.assertEqual(subs[-1], build_header.flourish())  # still written last
+
+    def test_big_letters_start_where_they_are_written_from(self):
+        # The font starts the J's and the C mid-stroke at the bottom of the
+        # bowl; each is reopened at its starting tip instead, and drawn in one
+        # pass that ends back there.
+        subs = build_header.with_starts(sigpath.simplified(SIG["path"]))
+        for start, _ in build_header.STARTS:
+            contour = min((p for p in subs if sigpath.is_closed(p)), key=lambda p: math.dist(p[0], start))
+            self.assertLess(math.dist(contour[0], start), 2)
+            self.assertEqual(contour[0], contour[-1])
+        before = sigpath.simplified(SIG["path"])
+        self.assertEqual(sorted(len(p) for p in subs), sorted(len(p) for p in before))  # same points, reordered
+
+    def test_letters_start_where_the_stroke_leading_in_ends(self):
+        # The "J." and the C each start exactly where the thin stroke leading
+        # into them arrives, so the pen does not jump.
+        subs = build_header.with_starts(sigpath.simplified(SIG["path"]))
+        for connector, letter in ((7, 8), (12, 13)):
+            self.assertLess(math.dist(subs[connector][-1], subs[letter][0]), 5)
+
+    def test_c_climbs_its_back_into_the_loop_first(self):
+        subs = build_header.with_starts(sigpath.simplified(SIG["path"]))
+        c = subs[13]
+        loop_top = min((k for k in range(len(c)) if c[k][0] > 940), key=lambda k: c[k][1])  # top of the loop
+        bottom = max(range(len(c)), key=lambda k: c[k][1])  # bottom of the C
+        self.assertLess(loop_top, bottom)
+
+    def test_holes_are_drawn_with_their_letter(self):
+        # The inside of each o and of the C's loop is drawn as the outer edge
+        # goes round it, not on its own after the letter.
+        subs = sigpath.simplified(SIG["path"])
+        inner = build_header.holes(subs)
+        self.assertEqual(sum(map(len, inner.values())), 5)  # two o's, the C, two J's
+        for host, hs in inner.items():
+            for h in hs:
+                _, t0, t1, _ = build_header.alongside(subs[h], subs[host])
+                self.assertLess(t0, t1)
+                self.assertLessEqual(t1, 1.0)
+                self.assertLess(t0, 0.8)  # starts well before its letter ends
+
+    def test_holes_run_the_same_way_as_their_letter(self):
+        # A hole run the wrong way round would have to wait at almost every
+        # point, so its pace collapses to a straight sweep.
+        subs = build_header.with_starts(sigpath.simplified(SIG["path"]))
+        for host, hs in build_header.holes(subs).items():
+            for h in hs:
+                path, t0, t1, keys = build_header.alongside(subs[h], subs[host])
+                ts = [build_header.passing(q, subs[host]) for q in path[:-1]]
+                ts[0] = t0
+                lag, top = 0.0, 0.0
+                for x in ts:
+                    top = max(top, x)
+                    lag += top - x
+                self.assertLess(lag / len(ts), 0.05, h)
+
+    def test_reduced_motion_stops_every_outline_piece(self):
+        # Hole pieces name their keyframes inline, which outranks the
+        # stylesheet; the reduced-motion rule must still win.
+        self.assertIn(".outline path,.fill,.wave,.sweep,.head,.cap{animation:none!important}", css(self.svg["dark"]))
+
+    def test_committed_header_matches_the_build(self):
+        # CI only runs the tests, so a stale committed SVG would otherwise go
+        # unnoticed.
+        for theme, svg in self.svg.items():
+            self.assertEqual((ROOT / "assets" / f"header-{theme}.svg").read_text(), svg, theme)
 
     def test_outline_keeps_its_lead_in(self):
         delays = [float(a) for a in re.findall(r"animation-delay:([\d.]+)s", self.svg["dark"])]
