@@ -1,6 +1,7 @@
 """Run: python3 -m unittest discover -s scripts"""
 
 import json
+import math
 import re
 import unittest
 import xml.etree.ElementTree as ET
@@ -62,6 +63,23 @@ class Header(unittest.TestCase):
         self.assertEqual(len(pieces), len(sigpath.simplified(SIG["path"])))
         self.assertEqual(svg.count("<mask"), 1)
         self.assertEqual(svg.count('class="fill"'), 1)
+
+    def test_flourish_ends_without_a_hook(self):
+        # The source flourish doubled back after crossing the J (x turned
+        # around) through a 54 degree corner. The redrawn one must keep
+        # moving left and never turn sharply between samples.
+        f = build_header.flourish()
+        self.assertTrue(all(b[0] <= a[0] for a, b in zip(f, f[1:])))
+        for a, b, c in zip(f, f[1:], f[2:]):
+            u, v = (b[0] - a[0], b[1] - a[1]), (c[0] - b[0], c[1] - b[1])
+            turn = abs(math.degrees(math.atan2(u[0] * v[1] - u[1] * v[0], u[0] * v[0] + u[1] * v[1])))
+            self.assertLess(turn, 25)
+
+    def test_flourish_replaces_the_source_one(self):
+        subs = build_header.with_flourish(sigpath.simplified(SIG["path"]), build_header.flourish())
+        self.assertEqual(len(subs), len(sigpath.simplified(SIG["path"])))
+        self.assertIn(build_header.flourish(), subs)
+        self.assertEqual(subs[-1], build_header.flourish())  # still written last
 
     def test_outline_keeps_its_lead_in(self):
         delays = [float(a) for a in re.findall(r"animation-delay:([\d.]+)s", self.svg["dark"])]

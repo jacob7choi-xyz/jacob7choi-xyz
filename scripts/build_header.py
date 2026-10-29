@@ -37,6 +37,35 @@ WRITE_END = WRITE_START + WRITE_SECONDS
 FILL_START, FILL_SECONDS = WRITE_END + 0.15, 1.5
 FILL_END = FILL_START + FILL_SECONDS
 
+# The underline flourish, redrawn here rather than taken from the source path.
+# The website's version is two long cubics that the 8-segment sampling in
+# sigpath.parse turns into visible corners, and its last curve doubles back
+# on itself after crossing the J, leaving a hooked stub. This one keeps the
+# same sweep out of the i, under the name and across the J, and ends at the
+# same point with the same upward flick, but turns into it in one smooth
+# curve. Cubic Beziers in signature units, written right to left like the pen.
+FLOURISH = (
+    ((1196.9, -14.6), (1086.9, 53.4), (760.0, 104.0), (420.0, 102.0)),
+    ((420.0, 102.0), (230.0, 101.0), (100.0, 100.0), (95.0, 48.0)),
+)
+
+
+def flourish() -> list[sigpath.Point]:
+    """The flourish's centreline, sampled finely enough that no corner shows,
+    then simplified like everything else."""
+    pts = [sigpath.bezier(c, k / 200) for i, c in enumerate(FLOURISH) for k in range(0 if i == 0 else 1, 201)]
+    return sigpath.rdp(pts, sigpath.TOLERANCE)
+
+
+def with_flourish(subs: list[list[sigpath.Point]], line: list[sigpath.Point]) -> list[list[sigpath.Point]]:
+    """Swap the source flourish (the one open subpath spanning the name) for
+    the redrawn one, keeping its place in the writing order."""
+    span = [max(x for x, _ in p) - min(x for x, _ in p) for p in subs]
+    i = span.index(max(span))
+    if sigpath.is_closed(subs[i]):
+        raise ValueError("expected the flourish to be the widest, open subpath")
+    return subs[:i] + [line] + subs[i + 1 :]
+
 
 def clean_y(t: float) -> float:
     # Same terms as WAVE_PATH in the website's HomeContent.tsx.
@@ -103,7 +132,7 @@ def render(theme: str, sig: dict) -> str:
     sig_x = (W - sig_w) / 2
     ink = THEMES[theme]["ink"]
     muted = THEMES[theme]["muted"]
-    subs = sigpath.simplified(sig["path"])  # see sigpath.py
+    subs = with_flourish(sigpath.simplified(sig["path"]), flourish())  # see sigpath.py
     # Step 2, the fill: the closed letter contours, revealed left to right by
     # one feathered sweep once the outline is complete. At rest the sweep
     # covers the whole signature with its feather parked past the right edge.

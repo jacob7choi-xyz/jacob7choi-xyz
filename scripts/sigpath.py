@@ -38,17 +38,22 @@ def parse(path: str) -> list[list[Point]]:
                     pts.append(cur)
             else:
                 for i in range(0, len(n), 6):
-                    p0, p1, p2, p3 = cur, n[i : i + 2], n[i + 2 : i + 4], n[i + 4 : i + 6]
+                    c = (cur, n[i : i + 2], n[i + 2 : i + 4], n[i + 4 : i + 6])
                     for k in range(1, 9):
-                        t = k / 8
-                        u = 1 - t
-                        cur = (
-                            u**3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t**3 * p3[0],
-                            u**3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t**3 * p3[1],
-                        )
+                        cur = bezier(c, k / 8)
                         pts.append(cur)
         out.append(pts)
     return out
+
+
+def bezier(c, t: float) -> Point:
+    """Point at t on the cubic Bezier with control points c = (p0, p1, p2, p3)."""
+    p0, p1, p2, p3 = c
+    u = 1 - t
+    return (
+        u**3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t**3 * p3[0],
+        u**3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t**3 * p3[1],
+    )
 
 
 def rdp(pts: list[Point], tol: float) -> list[Point]:
