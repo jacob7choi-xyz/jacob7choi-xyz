@@ -15,10 +15,10 @@ AI/Agentic Pipeline Engineer at [MCGI @ The Jackson Laboratory](https://www.jax.
 
 | Project | What it is |
 | --- | --- |
-| [**HarmonyRestorer**](https://github.com/jacob7choi-xyz/harmonyrestorer-v1) · [live](https://harmonyrestorer.online/) | Audio restoration built on a from-scratch 1D Operational GAN ([Ince et al. 2022](https://arxiv.org/abs/2212.14618)), trained on 146K noisy/clean pairs. FastAPI + React on AWS Lambda, deployed from CI after review. 1,276 tests. |
-| [**fli-tracker**](https://github.com/jacob7choi-xyz/fli-tracker) | Flight-price collector on a 6-hour GitHub Actions schedule since April 2026. Each run writes a provenance manifest, and a coverage ledger marks every slot complete, partial, or missing. |
-| [**polymarket-research**](https://github.com/jacob7choi-xyz/polymarket-research) | Arbitrage detection and calibration research across 9,922 resolved prediction markets, built for resilience and observability: Prometheus + Grafana, Docker, 326 tests. |
-| [**TuneTales**](https://github.com/jacob7choi-xyz/tunetales-v1) · [live](https://tunetales-v1.vercel.app/) | Cinematic music storytelling: 77 Frank Ocean songs with origin stories from an AI research pipeline, playable inside a 6-chapter journey. Next.js + Python. |
+| [**HarmonyRestorer**](https://github.com/jacob7choi-xyz/harmonyrestorer-v1) · [live](https://harmonyrestorer.online/) | Audio restoration built on a from-scratch 1D Operational GAN ([Ince et al. 2022](https://arxiv.org/abs/2212.14618)), trained on 146K noisy/clean pairs and deployed from CI after review. 1,277 tests.<br><sub>PyTorch · FastAPI · React + TypeScript · AWS Lambda · Docker</sub> |
+| [**fli-tracker**](https://github.com/jacob7choi-xyz/fli-tracker) | Flight-price collector built on [fli](https://github.com/punitarani/fli), on a 6-hour GitHub Actions schedule since April 2026. Each run writes a provenance manifest, and a coverage ledger marks every slot complete, partial, or missing.<br><sub>Python · GitHub Actions · SQLite</sub> |
+| [**polymarket-research**](https://github.com/jacob7choi-xyz/polymarket-research) | Arbitrage detection and calibration research across 9,922 resolved prediction markets, built for resilience and observability. 326 tests.<br><sub>Python · Prometheus · Grafana · Docker · Pydantic</sub> |
+| [**TuneTales**](https://github.com/jacob7choi-xyz/tunetales-v1) · [live](https://tunetales-v1.vercel.app/) | Cinematic music storytelling: 77 Frank Ocean songs with origin stories from an AI research pipeline, playable inside a 6-chapter journey.<br><sub>Next.js · React · Tailwind CSS · FastAPI · Claude · Perplexity</sub> |
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jacob7choi-xyz/jacob7choi-xyz/output/sequencer-dark.svg">
